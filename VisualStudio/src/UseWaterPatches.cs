@@ -342,13 +342,21 @@ namespace BetterWaterManagement
                 float maxWater = __instance.m_GearItem.m_LiquidItem.m_LiquidCapacityLiters;
                 bool hasWater = currentWater > 0;
                 __instance.m_Refuel_X.gameObject.SetActive(!hasWater);
+                __instance.m_RequiresFuelMessage.SetActive(false);
                 __instance.m_Button_Refuel.gameObject.GetComponent<Panel_Inventory_Examine_MenuItem>().SetDisabled(!hasWater);
                 __instance.m_MouseRefuelButton.SetActive(hasWater);
                 string currentLocalWaterString = Utils.GetLiquidQuantityStringNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, currentWater);
                 string maxLocalWaterString = Utils.GetLiquidQuantityStringWithUnitsNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, maxWater);
                 __instance.m_LanternFuelAmountLabel.text = currentLocalWaterString + "/" + maxLocalWaterString;
-                string currentTotalWater = Utils.GetLiquidQuantityStringNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, GameManager.GetPlayerManagerComponent().GetTotalLiters(GearLiquidTypeEnum.Water));
-                __instance.m_FuelSupplyAmountLabel.text = currentTotalWater;
+                if (__instance.m_GearItem.m_LiquidItem.m_LiquidQuality == LiquidQuality.Potable)
+                {
+                    string currentTotalPotableWater = Utils.GetLiquidQuantityStringWithUnitsNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, Water.GetActual(LiquidQuality.Potable));
+                    __instance.m_FuelSupplyAmountLabel.text = currentTotalPotableWater;
+                } else
+                {
+                    string currentTotalNonPotableWater = Utils.GetLiquidQuantityStringWithUnitsNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, Water.GetActual(LiquidQuality.NonPotable));
+                    __instance.m_FuelSupplyAmountLabel.text = currentTotalNonPotableWater;
+                }
                 return false;
             }
             return true;
@@ -409,40 +417,77 @@ namespace BetterWaterManagement
             return true;
         }
     }
-
+    // This patch changes the refuel interface to look like pouring.
     [HarmonyPatch(typeof(Panel_Inventory_Examine), "Enable")]
     internal class Panel_Inventory_Examine_Enable
     {
-        internal static bool setTexture = false;
+        internal static bool changedToPour = false;
+        internal static Texture previousLanternTexture;
+        internal static Texture previousFuelSupplyTexture;
+        internal static string previousButtonLabel;
+        internal static string previousButtonSprite;
         public static void Prefix(Panel_Inventory_Examine __instance, bool enable)
         {
-            if (WaterUtils.IsWaterItem(__instance.m_GearItem) && enable)
+            if (WaterUtils.IsWaterItem(__instance.m_GearItem) && enable) // Convert the panel to water pouring.
             {
-                UITexture lanternTexture = __instance.m_RefuelPanel.transform.Find("FuelDisplay/Lantern_Texture").GetComponent<UITexture>();
+                changedToPour = true;
+                Transform refuelPanelTransform = __instance.m_RefuelPanel.transform;
+                // Change lantern texture. Save old texture.
+                UITexture lanternTexture = refuelPanelTransform.Find("FuelDisplay/Lantern_Texture").GetComponent<UITexture>();
                 if (lanternTexture)
                 {
+                    previousLanternTexture = lanternTexture.mainTexture;
                     lanternTexture.mainTexture = Utils.GetInventoryIconTexture(__instance.m_GearItem);
-                    setTexture = true;
                 }
-
-            } else if (setTexture && false)
-            {
-
-                UITexture lanternTexture = __instance.m_RefuelPanel.transform.Find("FuelDisplay/Lantern_Texture").GetComponent<UITexture>();
-                if (lanternTexture)
+                // Change fuel supply texture. Save old texture.
+                UITexture FuelSupplyTexture = refuelPanelTransform.Find("FuelDisplay/FuelSupply_Texture").GetComponent<UITexture>();
+                if (FuelSupplyTexture)
                 {
-                    lanternTexture.mainTexture = Utils.GetInventoryIconTexture(__instance.m_GearItem);
-                    setTexture = false;
+                    previousFuelSupplyTexture = FuelSupplyTexture.mainTexture;
+                    if (__instance.m_GearItem.m_LiquidItem.m_LiquidQuality == LiquidQuality.Potable)
+                    {
+                        FuelSupplyTexture.mainTexture = Utils.GetInventoryIconTexture(GameManager.GetInventoryComponent().GetPotableWaterSupply());
+                    } else
+                    {
+                        FuelSupplyTexture.mainTexture = Utils.GetInventoryIconTexture(GameManager.GetInventoryComponent().GetNonPotableWaterSupply());
+                    }
                 }
+                // Hide wrong labels
+                refuelPanelTransform.Find("FuelDisplay/Lanter_Label").gameObject.SetActive(false);
+                refuelPanelTransform.Find("FuelDisplay/FuelSupply_Label").gameObject.SetActive(false);
+                // Change Button sprite
+                previousButtonSprite = __instance.m_Button_Refuel.normalSprite;
+                __instance.m_Button_Refuel.normalSprite = __instance.m_Button_Harvest.normalSprite;
+                __instance.m_Button_Refuel.GetComponentInChildren<UILocalize>().key = "GAMEPLAY_Drop";
+                refuelPanelTransform.Find("RefuelPanel_Buttons").gameObject.GetComponentInChildren<UILocalize>().key = "GAMEPLAY_Drop";
+                __instance.m_Button_Refuel.GetComponentInChildren<UILocalize>().OnLocalize();
+                refuelPanelTransform.Find("RefuelPanel_Buttons").GetComponentInChildren<UILocalize>().OnLocalize();
+
             }
-            for (int i = 0;  i < __instance.m_RefuelPanel.transform.childCount; i++)
+            else if (changedToPour) // Revert the changes.
             {
-                var child = __instance.m_RefuelPanel.transform.GetChild(i);
-                MelonLoader.MelonLogger.Log("Child: {0}", child.name);
-                for (int j = 0; j < child.childCount; j++)
+                Transform refuelPanelTransform = __instance.m_RefuelPanel.transform;
+                UITexture lanternTexture = refuelPanelTransform.Find("FuelDisplay/Lantern_Texture").GetComponent<UITexture>();
+                if (lanternTexture)
                 {
-                    MelonLoader.MelonLogger.Log("      DChild: {0}", child.GetChild(j).name);
+                    lanternTexture.mainTexture = previousLanternTexture;
                 }
+                UITexture FuelSupplyTexture = refuelPanelTransform.Find("FuelDisplay/FuelSupply_Texture").GetComponent<UITexture>();
+                if (FuelSupplyTexture)
+                {
+                    FuelSupplyTexture.mainTexture = previousFuelSupplyTexture;
+                }
+                // Reactivate labels
+                refuelPanelTransform.Find("FuelDisplay/Lanter_Label").gameObject.SetActive(true);
+                refuelPanelTransform.Find("FuelDisplay/FuelSupply_Label").gameObject.SetActive(true);
+                // Change Button label and sprite
+                __instance.m_Button_Refuel.normalSprite = previousButtonSprite;
+
+                __instance.m_Button_Refuel.GetComponentInChildren<UILocalize>().key = previousButtonLabel;
+                refuelPanelTransform.Find("RefuelPanel_Buttons").GetComponentInChildren<UILocalize>().key = previousButtonLabel;
+                __instance.m_Button_Refuel.GetComponentInChildren<UILocalize>().OnLocalize();
+                refuelPanelTransform.Find("RefuelPanel_Buttons").GetComponentInChildren<UILocalize>().OnLocalize();
+                changedToPour = false;
             }
         }
     }
