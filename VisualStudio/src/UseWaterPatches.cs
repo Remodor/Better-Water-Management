@@ -318,4 +318,132 @@ namespace BetterWaterManagement
             waterSupply.m_DrinkingAudio = liquidItem.m_DrinkingAudio;
         }
     }
+    [HarmonyPatch(typeof(ItemDescriptionPage), "CanExamine")]
+    internal class ItemDescriptionPage_CanExamine
+    {
+        public static void Postfix(GearItem gi, ref bool __result)
+        {
+            if (WaterUtils.IsWaterItem(gi))
+            {
+                __result = true;
+            }
+        }
+    }
+    [HarmonyPatch(typeof(Panel_Inventory_Examine), "RefreshRefuelPanel")]
+    internal class Panel_Inventory_RefreshRefuelPanel
+    {
+        public static bool Prefix(Panel_Inventory_Examine __instance)
+        {
+            if (WaterUtils.IsWaterItem(__instance.m_GearItem))
+            {
+                __instance.m_RefuelPanel.SetActive(false);
+                __instance.m_Button_Refuel.gameObject.SetActive(true);
+                float currentWater = __instance.m_GearItem.m_LiquidItem.m_LiquidLiters;
+                float maxWater = __instance.m_GearItem.m_LiquidItem.m_LiquidCapacityLiters;
+                bool hasWater = currentWater > 0;
+                __instance.m_Refuel_X.gameObject.SetActive(!hasWater);
+                __instance.m_Button_Refuel.gameObject.GetComponent<Panel_Inventory_Examine_MenuItem>().SetDisabled(!hasWater);
+                __instance.m_MouseRefuelButton.SetActive(hasWater);
+                string currentLocalWaterString = Utils.GetLiquidQuantityStringNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, currentWater);
+                string maxLocalWaterString = Utils.GetLiquidQuantityStringWithUnitsNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, maxWater);
+                __instance.m_LanternFuelAmountLabel.text = currentLocalWaterString + "/" + maxLocalWaterString;
+                string currentTotalWater = Utils.GetLiquidQuantityStringNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, GameManager.GetPlayerManagerComponent().GetTotalLiters(GearLiquidTypeEnum.Water));
+                __instance.m_FuelSupplyAmountLabel.text = currentTotalWater;
+                return false;
+            }
+            return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(Panel_Inventory_Examine), "OnRefuel")]
+    internal class Panel_Inventory_OnRefuel
+    {
+        private static void OnPourFinished(bool success, bool playerCancel, float progress)
+        {
+            Panel_Inventory_Examine panel_Inventory_Examine = InterfaceManager.m_Panel_Inventory_Examine;
+
+            MelonLoader.MelonLogger.Log("gi: {0}", panel_Inventory_Examine.m_GearItem.name);
+            MelonLoader.MelonLogger.Log("water: {0}", Water.GetActual(LiquidQuality.Potable));
+            MelonLoader.MelonLogger.Log("water: {0}", Water.GetActual(LiquidQuality.NonPotable));
+            float lostLiters = panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidLiters * progress;
+            MelonLoader.MelonLogger.Log("progress: {0}", progress);
+            MelonLoader.MelonLogger.Log("lostLiters: {0}", lostLiters);
+
+            if (panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidQuality == LiquidQuality.Potable)
+            {
+                WaterSupply potableWaterSupply = GameManager.GetInventoryComponent().GetPotableWaterSupply().m_WaterSupply;
+                Water.ShowLostMessage(potableWaterSupply, "GAMEPLAY_WaterPotable", lostLiters);
+            }
+            else
+            {
+                WaterSupply nonPotableWaterSupply = GameManager.GetInventoryComponent().GetNonPotableWaterSupply().m_WaterSupply;
+                Water.ShowLostMessage(nonPotableWaterSupply, "GAMEPLAY_WaterUnsafe", lostLiters);
+            }
+
+            panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidLiters = Mathf.Max(panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidLiters - lostLiters, 0);
+            Water.AdjustWaterSupplyToWater();
+            MelonLoader.MelonLogger.Log("water: {0}", Water.GetActual(LiquidQuality.Potable));
+            MelonLoader.MelonLogger.Log("water: {0}", Water.GetActual(LiquidQuality.NonPotable));
+
+
+            panel_Inventory_Examine.RefreshMainWindow();
+        }
+        public static bool Prefix(Panel_Inventory_Examine __instance)
+        {
+            if (WaterUtils.IsWaterItem(__instance.m_GearItem))
+            {
+                if (__instance.m_GearItem.m_LiquidItem.m_LiquidLiters <= 0.001f)
+                {
+                    HUDMessage.AddMessage(Localization.Get("GAMEPLAY_Empty"));
+                    GameAudioManager.PlayGUIError();
+                    return false;
+                }
+
+                GameAudioManager.PlayGuiConfirm();
+                float lostLitersDuration = Mathf.Max(__instance.m_GearItem.m_LiquidItem.m_LiquidLiters * 4, 1);
+
+                InterfaceManager.m_Panel_GenericProgressBar.Launch(Localization.Get("GAMEPLAY_RefuelingProgress"), lostLitersDuration, 0f, 0f, "Play_SndActionRefuelLantern", null, false, true, new System.Action<bool, bool, float>(OnPourFinished));
+
+                return false;
+            }
+            return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(Panel_Inventory_Examine), "Enable")]
+    internal class Panel_Inventory_Examine_Enable
+    {
+        internal static bool setTexture = false;
+        public static void Prefix(Panel_Inventory_Examine __instance, bool enable)
+        {
+            if (WaterUtils.IsWaterItem(__instance.m_GearItem) && enable)
+            {
+                UITexture lanternTexture = __instance.m_RefuelPanel.transform.Find("FuelDisplay/Lantern_Texture").GetComponent<UITexture>();
+                if (lanternTexture)
+                {
+                    lanternTexture.mainTexture = Utils.GetInventoryIconTexture(__instance.m_GearItem);
+                    setTexture = true;
+                }
+
+            } else if (setTexture && false)
+            {
+
+                UITexture lanternTexture = __instance.m_RefuelPanel.transform.Find("FuelDisplay/Lantern_Texture").GetComponent<UITexture>();
+                if (lanternTexture)
+                {
+                    lanternTexture.mainTexture = Utils.GetInventoryIconTexture(__instance.m_GearItem);
+                    setTexture = false;
+                }
+            }
+            for (int i = 0;  i < __instance.m_RefuelPanel.transform.childCount; i++)
+            {
+                var child = __instance.m_RefuelPanel.transform.GetChild(i);
+                MelonLoader.MelonLogger.Log("Child: {0}", child.name);
+                for (int j = 0; j < child.childCount; j++)
+                {
+                    MelonLoader.MelonLogger.Log("      DChild: {0}", child.GetChild(j).name);
+                }
+            }
+        }
+    }
 }
