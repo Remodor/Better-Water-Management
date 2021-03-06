@@ -1,6 +1,7 @@
 # Better-Water-Management - Forked Repository
 
-This is a forked repository of Better-Water-Management from [ds5678](https://github.com/ds5678/) and the original creator [WulfMarius](https://github.com/WulfMarius)
+This is a forked repository of Better-Water-Management from [ds5678](https://github.com/ds5678/) and the original creator [WulfMarius](https://github.com/WulfMarius).
+
 More details available on the [original repository](https://github.com/ds5678/Better-Water-Management/)
 
 ## Installation
