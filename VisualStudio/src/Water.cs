@@ -230,7 +230,7 @@ namespace BetterWaterManagement
         }
 
         //Method to send a notification informing the player that water has been lost
-        private static void ShowLostMessage(WaterSupply waterSupply, string name, float amount)
+        internal static void ShowLostMessage(WaterSupply waterSupply, string name, float amount)
         {
             GearMessage.AddMessage(
                 waterSupply.name,
