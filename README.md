@@ -1,16 +1,7 @@
-# Better-Water-Management
+# Better-Water-Management - Forked Repository
 
-This is a mod for **The Long Dark** by Hinterland Studio, Inc.
-
-More details available on the [wiki](https://github.com/ds5678/Better-Water-Management/wiki)
-
-## Special Thanks
-
-[WulfMarius](https://github.com/WulfMarius) is the original creator of Better Water Management. I am very grateful for all the contributions he made to the modding community, and I'm honored to have adopted so many of his mods.
-
-## [Patreon](https://www.patreon.com/ds5678)
-
-I know many people might skip over this, but I hope you don't. You are so special, and I would appreciate your support. Modding takes lots of time, and I have expenses like food, internet, and rent. If you feel that I have improved your playing experience, please consider supporting me on my [Patreon](https://www.patreon.com/ds5678). Your support helps to ensure that I can continue making mods for you at the pace I am :)
+This is a forked repository of Better-Water-Management from [ds5678](https://github.com/ds5678/) and the original creator [WulfMarius](https://github.com/WulfMarius)
+More details available on the [original repository](https://github.com/ds5678/Better-Water-Management/)
 
 ## Installation
 
