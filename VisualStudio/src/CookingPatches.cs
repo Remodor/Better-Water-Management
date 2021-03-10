@@ -98,11 +98,20 @@ namespace BetterWaterManagement
 
         internal static void Postfix(CookingPotItem __instance)
         {
+            MelonLoader.MelonLogger.Log("---------------------------------------");
+            MelonLoader.MelonLogger.Log("!__instance.AttachedFireIsBurning(): {0}", !__instance.AttachedFireIsBurning());
+            MelonLoader.MelonLogger.Log("WaterUtils.IsCookingItem(__instance): {0}", WaterUtils.IsCookingItem(__instance));
+            MelonLoader.MelonLogger.Log("__instance.IsDummyPot(): {0}", __instance.IsDummyPot());
+            if (__instance.m_GearItemBeingCooked)
+            {
+                MelonLoader.MelonLogger.Log("!__instance.m_GearItemBeingCooked.m_FoodItem: {0}", __instance.m_GearItemBeingCooked.m_FoodItem);
+                MelonLoader.MelonLogger.Log("!__instance.m_GearItemBeingCooked.m_LiquidItem: {0}", __instance.m_GearItemBeingCooked.m_LiquidItem);
+            }
+
             TrackExitPlaceMesh.isExecuting = false;
-            // This is used to instantly pick up food from pot/ cans, when using right-click (It is bugged otherwise).
-            // It is not allowed for meat -> !__instance.IsDummyPot().
             if (!__instance.AttachedFireIsBurning() && WaterUtils.IsCookingItem(__instance) && !__instance.IsDummyPot())
             {
+                MelonLoader.MelonLogger.Log("this is the problem :)");
                 __instance.PickUpCookedItem();
             }
         }
