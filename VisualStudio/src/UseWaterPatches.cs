@@ -329,14 +329,103 @@ namespace BetterWaterManagement
             }
         }
     }
-    [HarmonyPatch(typeof(Panel_Inventory_Examine), "OnRefuel")] // When the "refuel" button is pressed.
+    //* When the "refuel" button is pressed.
+    [HarmonyPatch(typeof(Panel_Inventory_Examine), "OnRefuel")]
     internal class Panel_Inventory_OnRefuel
     {
+        internal static void OnRefuelFinished(bool success, bool playerCancel, float progress)
+        {
+            Panel_Inventory_Examine panel_Inventory_Examine = InterfaceManager.m_Panel_Inventory_Examine;
+            LiquidItem liquidItem = panel_Inventory_Examine.m_GearItem.m_LiquidItem;
+
+            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
+
+            // Remove water and adjust the water supply.
+            float maxWaterInBottle = Mathf.Min(Water.GetActual(liquidItem.m_LiquidQuality), liquidItem.m_LiquidCapacityLiters);
+            float maximumWaterRefuel = maxWaterInBottle - liquidItem.m_LiquidLiters;
+            float finalWaterRefuel = maximumWaterRefuel * progress;
+            float finalWaterInBottle = finalWaterRefuel + liquidItem.m_LiquidLiters;
+            liquidItem.m_LiquidLiters = 0;
+            Water.WATER.Remove(finalWaterRefuel, liquidItem.m_LiquidQuality);
+            liquidItem.m_LiquidLiters = finalWaterInBottle;
+
+            //! delete
+            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
+            MelonLoader.MelonLogger.Log("maxWaterInBottle: {0}", maxWaterInBottle);
+            MelonLoader.MelonLogger.Log("finalWaterRefuel: {0}", finalWaterRefuel);
+            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
+            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
+            //! delete            
+            Inventory inventory = GameManager.GetInventoryComponent();
+            float sum = 0;
+            foreach (GameObject eachItem in inventory.m_Items)
+            {
+                LiquidItem tt = eachItem.GetComponent<LiquidItem>();
+                //if not a liquid item or not a water container
+                if (tt == null || tt.m_LiquidType != GearLiquidTypeEnum.Water)
+                {
+                    continue; // move to the next item
+                }
+                MelonLoader.MelonLogger.Log("water", tt.m_LiquidLiters);
+                sum += tt.m_LiquidLiters;
+            }
+            MelonLoader.MelonLogger.Log("Watr sum: {0}", sum);
+
+            //! delete
+            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
+
+
+            panel_Inventory_Examine.RefreshMainWindow();
+        }
+        internal static void Refuel(Panel_Inventory_Examine __instance)
+        {
+            var liquidItem = __instance.m_GearItem.m_LiquidItem;
+            if (liquidItem.m_LiquidLiters >= liquidItem.m_LiquidCapacityLiters)
+            {
+                HUDMessage.AddMessage(Localization.Get("GAMEPLAY_Lampalreadyfull")); //todo GAMEPLAY_Failed | GAMEPLAY_None
+                GameAudioManager.PlayGUIError();
+                __instance.RefreshMainWindow();
+                return;
+            }
+            if (Water.GetActual(liquidItem.m_LiquidQuality) <= 0.001f) // If the current water supply is empty.
+            {
+                HUDMessage.AddMessage(Localization.Get("GAMEPLAY_Empty"));
+                GameAudioManager.PlayGUIError();
+                __instance.RefreshMainWindow();
+                return;
+            }
+
+            float maxWaterInBottle = Mathf.Min(Water.GetActual(liquidItem.m_LiquidQuality), liquidItem.m_LiquidCapacityLiters);
+            float maximumWaterRefuel = Mathf.Max(maxWaterInBottle - liquidItem.m_LiquidLiters, 0);
+
+            if (maximumWaterRefuel <= 0.001f)
+            {
+                HUDMessage.AddMessage(Localization.Get("GAMEPLAY_None"));
+                GameAudioManager.PlayGUIError();
+                __instance.RefreshMainWindow();
+                return;
+            }
+            GameAudioManager.PlayGuiConfirm();
+
+            float refuelDuration = Mathf.Max(maximumWaterRefuel * 4, 1);
+
+            //! delete
+            MelonLoader.MelonLogger.Log("--------------------------");
+            MelonLoader.MelonLogger.Log("maxWaterInBottle: {0}", maxWaterInBottle);
+            MelonLoader.MelonLogger.Log("maximumWaterRefuel: {0}", maximumWaterRefuel);
+            MelonLoader.MelonLogger.Log("refuelDuration: {0}", refuelDuration);
+            //! delete
+
+            InterfaceManager.m_Panel_GenericProgressBar.Launch(Localization.Get("GAMEPLAY_RefuelingProgress"), refuelDuration, 0f, 0f,
+                            "Play_SndActionRefuelLantern", null, false, true, new System.Action<bool, bool, float>(OnRefuelFinished));
+
+        }
         internal static void OnPourFinished(bool success, bool playerCancel, float progress)
         {
             Panel_Inventory_Examine panel_Inventory_Examine = InterfaceManager.m_Panel_Inventory_Examine;
-            float lostLiters = panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidLiters * progress;
-            if (panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidQuality == LiquidQuality.Potable) // Potable water
+            LiquidItem liquidItem = panel_Inventory_Examine.m_GearItem.m_LiquidItem;
+            float lostLiters = liquidItem.m_LiquidLiters * progress;
+            if (liquidItem.m_LiquidQuality == LiquidQuality.Potable) // Potable water
             {
                 WaterSupply potableWaterSupply = GameManager.GetInventoryComponent().GetPotableWaterSupply().m_WaterSupply;
                 Water.ShowLostMessage(potableWaterSupply, "GAMEPLAY_WaterPotable", lostLiters);
@@ -348,32 +437,47 @@ namespace BetterWaterManagement
             }
 
             // Remove water and adjust the water supply.
-            panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidLiters = Mathf.Max(panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidLiters - lostLiters, 0);
+            liquidItem.m_LiquidLiters = Mathf.Max(liquidItem.m_LiquidLiters - lostLiters, 0);
             Water.AdjustWaterSupplyToWater();
             panel_Inventory_Examine.RefreshMainWindow();
+            panel_Inventory_Examine.OnSelectHarvestButton();
+        }
+        internal static void Pour(Panel_Inventory_Examine __instance)
+        {
+            var liquidItem = __instance.m_GearItem.m_LiquidItem;
+            if (liquidItem.m_LiquidLiters <= 0.001f)
+            {
+                HUDMessage.AddMessage(Localization.Get("GAMEPLAY_Empty"));
+                GameAudioManager.PlayGUIError();
+                return;
+            }
+
+            GameAudioManager.PlayGuiConfirm();
+            float lostLitersDuration = Mathf.Max(liquidItem.m_LiquidLiters * 4, 1);
+
+            InterfaceManager.m_Panel_GenericProgressBar.Launch(Localization.Get("GAMEPLAY_RefuelingProgress"), lostLitersDuration, 0f, 0f,
+                            "Play_SndActionRefuelLantern", null, false, true, new System.Action<bool, bool, float>(OnPourFinished));
+
         }
         internal static bool Prefix(Panel_Inventory_Examine __instance)
         {
             if (WaterUtils.IsWaterItem(__instance.m_GearItem))
             {
-                if (__instance.m_GearItem.m_LiquidItem.m_LiquidLiters <= 0.001f)
+                // Pour on harvest, refuel on refuel.
+                if (__instance.m_Buttons[__instance.m_SelectedButtonIndex] == __instance.m_Button_Harvest)
                 {
-                    HUDMessage.AddMessage(Localization.Get("GAMEPLAY_Empty"));
-                    GameAudioManager.PlayGUIError();
-                    return false;
+                    Pour(__instance);
                 }
-
-                GameAudioManager.PlayGuiConfirm();
-                float lostLitersDuration = Mathf.Max(__instance.m_GearItem.m_LiquidItem.m_LiquidLiters * 4, 1);
-
-                InterfaceManager.m_Panel_GenericProgressBar.Launch(Localization.Get("GAMEPLAY_RefuelingProgress"), lostLitersDuration, 0f, 0f, "Play_SndActionRefuelLantern", null, false, true, new System.Action<bool, bool, float>(OnPourFinished));
-
+                else
+                {
+                    Refuel(__instance);
+                }
                 return false;
             }
             return true;
         }
     }
-    // Build the new "water pour" panel and override the old "refuel" panel. Dynamic changes.
+    //* Build the new "water refuel" panel and override the old "refuel" panel. Dynamic changes.
     [HarmonyPatch(typeof(Panel_Inventory_Examine), "RefreshRefuelPanel")]
     internal class Panel_Inventory_RefreshRefuelPanel
     {
@@ -381,35 +485,61 @@ namespace BetterWaterManagement
         {
             if (WaterUtils.IsWaterItem(__instance.m_GearItem))
             {
+                // Activate harvest button
+                __instance.m_Button_Harvest.gameObject.SetActive(true);
+
                 // This is basically the old "RefreshRefuelPanel" method adapted to the new "water pour" panel
                 __instance.m_RefuelPanel.SetActive(false);
                 __instance.m_Button_Refuel.gameObject.SetActive(true);
-                float currentWater = __instance.m_GearItem.m_LiquidItem.m_LiquidLiters;
-                float maxWater = __instance.m_GearItem.m_LiquidItem.m_LiquidCapacityLiters;
-                bool hasWater = currentWater > 0;
-                __instance.m_Refuel_X.gameObject.SetActive(!hasWater);
+                var liquidItem = __instance.m_GearItem.m_LiquidItem;
+                float currentWater = liquidItem.m_LiquidLiters;
+                float maxWater = liquidItem.m_LiquidCapacityLiters;
+                // Update water Quality
+                float totalWater = GameManager.GetPlayerManagerComponent().GetTotalLiters(GearLiquidTypeEnum.Water);
+                if (currentWater <= 0.001f && Water.GetActual(liquidItem.m_LiquidQuality) <= 0.001f && totalWater > 0.001f)
+                {
+                    liquidItem.m_LiquidQuality = liquidItem.m_LiquidQuality == LiquidQuality.Potable ? LiquidQuality.NonPotable : LiquidQuality.Potable;
+                    Panel_Helper.UpdateFuelSupplyTexture();
+                }
+                __instance.m_Refuel_X.gameObject.SetActive(false);
                 __instance.m_RequiresFuelMessage.SetActive(false);
-                __instance.m_Button_Refuel.gameObject.GetComponent<Panel_Inventory_Examine_MenuItem>().SetDisabled(!hasWater);
-                __instance.m_MouseRefuelButton.SetActive(hasWater);
-                string currentLocalWaterString = Utils.GetLiquidQuantityStringNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, currentWater);
+                bool refuelPossible = currentWater == maxWater || currentWater >= totalWater - 0.001f;
+                __instance.m_Button_Refuel.gameObject.GetComponent<Panel_Inventory_Examine_MenuItem>().SetDisabled(refuelPossible);
+
+                __instance.m_MouseRefuelButton.SetActive(false);
+                // Display bottle water amount
+                string currentLocalWaterString = Utils.GetLiquidQuantityStringNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, Mathf.Floor(currentWater * 100) / 100);
                 string maxLocalWaterString = Utils.GetLiquidQuantityStringWithUnitsNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, maxWater);
                 __instance.m_LanternFuelAmountLabel.text = currentLocalWaterString + "/" + maxLocalWaterString;
-                if (__instance.m_GearItem.m_LiquidItem.m_LiquidQuality == LiquidQuality.Potable) // Lists the water amount.
-                {
-                    string currentTotalPotableWater = Utils.GetLiquidQuantityStringWithUnitsNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, Water.GetActual(LiquidQuality.Potable));
-                    __instance.m_FuelSupplyAmountLabel.text = currentTotalPotableWater;
-                }
-                else
-                {
-                    string currentTotalNonPotableWater = Utils.GetLiquidQuantityStringWithUnitsNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, Water.GetActual(LiquidQuality.NonPotable));
-                    __instance.m_FuelSupplyAmountLabel.text = currentTotalNonPotableWater;
-                }
+                // Display Total water
+                string currentTotalWater = Utils.GetLiquidQuantityStringWithUnitsNoOunces(InterfaceManager.m_Panel_OptionsMenu.m_State.m_Units, Water.GetActual(liquidItem.m_LiquidQuality));
+                __instance.m_FuelSupplyAmountLabel.text = currentTotalWater;
+                // Switch refuel label on harvest selected.
+                bool harvestSelected = __instance.m_Buttons[__instance.m_SelectedButtonIndex] == __instance.m_Button_Harvest;
+                Panel_Helper.oUseRefuelBLabel.SetActive(!harvestSelected);
+                Panel_Helper.nUseRefuelBLabel.SetActive(harvestSelected);
                 return false;
             }
             return true;
         }
     }
-    // Build the new "water pour" panel and override the old "refuel" panel. Static changes.
+    //* Disables the harvest window and enables the refuel panel.
+    [HarmonyPatch(typeof(Panel_Inventory_Examine), "RefreshButton")]
+    internal class Panel_Inventory_RefreshButton
+    {
+        internal static void Postfix(Panel_Inventory_Examine __instance)
+        {
+            if (WaterUtils.IsWaterItem(__instance.m_GearItem))
+            {
+                __instance.m_HarvestWindow.SetActive(false);
+                __instance.m_RefuelPanel.SetActive(true);
+                bool harvestSelected = __instance.m_Buttons[__instance.m_SelectedButtonIndex] == __instance.m_Button_Harvest;
+                Panel_Helper.oUseRefuelBLabel.SetActive(!harvestSelected);
+                Panel_Helper.nUseRefuelBLabel.SetActive(harvestSelected);
+            }
+        }
+    }
+    //* Build the new "water pour" panel and override the old "refuel" panel. Static changes.
     [HarmonyPatch(typeof(Panel_Inventory_Examine), "Enable")]
     internal class Panel_Inventory_Examine_Enable
     {
@@ -428,25 +558,27 @@ namespace BetterWaterManagement
             }
         }
     }
+    //* Panel Helper for water operations.
     internal static class Panel_Helper
     {
         internal static Texture previousLanternTexture;
         internal static Texture previousFuelSupplyTexture;
         internal static string previousRefuelButtonSprite = "";
-        internal static GameObject oSelectRefuelBLabel; // Original select refuel button label.
+        internal static string previousHarvestButtonSprite = "";
+        internal static GameObject oSelectHarvestBLabel; // Original select harvest button label.
+        internal static GameObject nSelectHarvestBLabel; // New select harvest button label.
         internal static GameObject oUseRefuelBLabel; // Original use refuel button label.
-        internal static GameObject nSelectRefuelBLabel; // New select refuel button label.
         internal static GameObject nUseRefuelBLabel; // New use refuel button label
         internal static void Initialize(Panel_Inventory_Examine panel_ie)
         {
-            oSelectRefuelBLabel = panel_ie.m_Button_Refuel.GetComponentInChildren<UILabel>().gameObject;
-            nSelectRefuelBLabel = GameObject.Instantiate(oSelectRefuelBLabel, oSelectRefuelBLabel.transform.parent);
-            nSelectRefuelBLabel.GetComponentInChildren<UILocalize>().key = "GAMEPLAY_Drop";
-            nSelectRefuelBLabel.SetActive(false);
+            oSelectHarvestBLabel = panel_ie.m_Button_Harvest.GetComponentInChildren<UILabel>().gameObject;
+            nSelectHarvestBLabel = GameObject.Instantiate(oSelectHarvestBLabel, oSelectHarvestBLabel.transform.parent);
+            nSelectHarvestBLabel.GetComponentInChildren<UILocalize>().key = "GAMEPLAY_Unload";
+            nSelectHarvestBLabel.SetActive(false);
 
             oUseRefuelBLabel = panel_ie.m_RefuelPanel.transform.Find("RefuelPanel_Buttons").GetComponentInChildren<UILabel>().gameObject;
             nUseRefuelBLabel = GameObject.Instantiate(oUseRefuelBLabel, oUseRefuelBLabel.transform.parent);
-            nUseRefuelBLabel.GetComponentInChildren<UILocalize>().key = "GAMEPLAY_Drop";
+            nUseRefuelBLabel.GetComponent<UILocalize>().key = "GAMEPLAY_Unload";
             nUseRefuelBLabel.SetActive(false);
         }
         internal static void LabelsSetActive(Panel_Inventory_Examine panel_ie, bool value)
@@ -454,11 +586,9 @@ namespace BetterWaterManagement
             // Old labels
             panel_ie.m_RefuelPanel.transform.Find("FuelDisplay/Lanter_Label").gameObject.SetActive(!value);
             panel_ie.m_RefuelPanel.transform.Find("FuelDisplay/FuelSupply_Label").gameObject.SetActive(!value);
-            oSelectRefuelBLabel.SetActive(!value);
-            oUseRefuelBLabel.SetActive(!value);
+            oSelectHarvestBLabel.SetActive(!value);
             // New labels
-            nSelectRefuelBLabel.SetActive(value);
-            nUseRefuelBLabel.SetActive(value);
+            nSelectHarvestBLabel.SetActive(value);
         }
         internal static void ActivatePourPanel(Panel_Inventory_Examine panel_ie)
         {
@@ -474,20 +604,16 @@ namespace BetterWaterManagement
             if (FuelSupplyTexture)
             {
                 previousFuelSupplyTexture = FuelSupplyTexture.mainTexture;
-                if (panel_ie.m_GearItem.m_LiquidItem.m_LiquidQuality == LiquidQuality.Potable)
-                {
-                    FuelSupplyTexture.mainTexture = Utils.GetInventoryIconTexture(GameManager.GetInventoryComponent().GetPotableWaterSupply());
-                }
-                else
-                {
-                    FuelSupplyTexture.mainTexture = Utils.GetInventoryIconTexture(GameManager.GetInventoryComponent().GetNonPotableWaterSupply());
-                }
+                UpdateFuelSupplyTexture();
             }
-            // Change Button sprite
+            // Change Button sprites
             previousRefuelButtonSprite = panel_ie.m_Button_Refuel.normalSprite;
             panel_ie.m_Button_Refuel.normalSprite = panel_ie.m_Button_Harvest.normalSprite;
+            previousHarvestButtonSprite = panel_ie.m_Button_Harvest.normalSprite;
+            panel_ie.m_Button_Harvest.normalSprite = panel_ie.m_Button_Unload.normalSprite;
             // Deactivate/ activate button labels
             LabelsSetActive(panel_ie, true);
+            panel_ie.m_Button_Harvest.gameObject.GetComponent<Panel_Inventory_Examine_MenuItem>().m_LabelTitle = nSelectHarvestBLabel.GetComponent<UILabel>();
         }
         internal static void DeactivatePourPanel(Panel_Inventory_Examine panel_ie)
         {
@@ -504,11 +630,30 @@ namespace BetterWaterManagement
             }
             // Change Button sprite
             panel_ie.m_Button_Refuel.normalSprite = previousRefuelButtonSprite;
+            panel_ie.m_Button_Harvest.normalSprite = previousHarvestButtonSprite;
             // Deactivate/ activate labels
             Panel_Helper.LabelsSetActive(panel_ie, false);
+            panel_ie.m_Button_Harvest.gameObject.GetComponent<Panel_Inventory_Examine_MenuItem>().m_LabelTitle = oSelectHarvestBLabel.GetComponent<UILabel>();
         }
+        internal static void UpdateFuelSupplyTexture()
+        {
+            Panel_Inventory_Examine panel_Inventory_Examine = InterfaceManager.m_Panel_Inventory_Examine;
+            UITexture FuelSupplyTexture = panel_Inventory_Examine.m_RefuelPanel.transform.Find("FuelDisplay/FuelSupply_Texture").GetComponent<UITexture>();
+            if (FuelSupplyTexture)
+            {
+                if (panel_Inventory_Examine.m_GearItem.m_LiquidItem.m_LiquidQuality == LiquidQuality.Potable)
+                {
+                    FuelSupplyTexture.mainTexture = Utils.GetInventoryIconTexture(GameManager.GetInventoryComponent().GetPotableWaterSupply());
+                }
+                else
+                {
+                    FuelSupplyTexture.mainTexture = Utils.GetInventoryIconTexture(GameManager.GetInventoryComponent().GetNonPotableWaterSupply());
+                }
+            }
+        }
+
     }
-    // Creates and initializes the new pour botton labels.
+    //* Creates and initializes the new pour botton labels.
     [HarmonyPatch(typeof(Panel_Inventory_Examine), "Start")]
     internal class Panel_Inventory_Examine_Start
     {

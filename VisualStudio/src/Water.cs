@@ -310,7 +310,7 @@ namespace BetterWaterManagement
         }
 
         //Take water out of the bottles for things like cooking
-        private void Remove(float amount, LiquidQuality quality)
+        internal void Remove(float amount, LiquidQuality quality)
         {
             if (IsNone(amount))//returns true for negative numbers, zero, and small positive numbers
             {
