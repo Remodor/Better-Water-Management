@@ -337,9 +337,6 @@ namespace BetterWaterManagement
         {
             Panel_Inventory_Examine panel_Inventory_Examine = InterfaceManager.m_Panel_Inventory_Examine;
             LiquidItem liquidItem = panel_Inventory_Examine.m_GearItem.m_LiquidItem;
-
-            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
-
             // Remove water and adjust the water supply.
             float maxWaterInBottle = Mathf.Min(Water.GetActual(liquidItem.m_LiquidQuality), liquidItem.m_LiquidCapacityLiters);
             float maximumWaterRefuel = maxWaterInBottle - liquidItem.m_LiquidLiters;
@@ -348,33 +345,6 @@ namespace BetterWaterManagement
             liquidItem.m_LiquidLiters = 0;
             Water.WATER.Remove(finalWaterRefuel, liquidItem.m_LiquidQuality);
             liquidItem.m_LiquidLiters = finalWaterInBottle;
-
-            //! delete
-            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
-            MelonLoader.MelonLogger.Log("maxWaterInBottle: {0}", maxWaterInBottle);
-            MelonLoader.MelonLogger.Log("finalWaterRefuel: {0}", finalWaterRefuel);
-            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
-            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
-            //! delete            
-            Inventory inventory = GameManager.GetInventoryComponent();
-            float sum = 0;
-            foreach (GameObject eachItem in inventory.m_Items)
-            {
-                LiquidItem tt = eachItem.GetComponent<LiquidItem>();
-                //if not a liquid item or not a water container
-                if (tt == null || tt.m_LiquidType != GearLiquidTypeEnum.Water)
-                {
-                    continue; // move to the next item
-                }
-                MelonLoader.MelonLogger.Log("water", tt.m_LiquidLiters);
-                sum += tt.m_LiquidLiters;
-            }
-            MelonLoader.MelonLogger.Log("Watr sum: {0}", sum);
-
-            //! delete
-            MelonLoader.MelonLogger.Log("liquidItem.m_LiquidLiters: {0}", liquidItem.m_LiquidLiters);
-
-
             panel_Inventory_Examine.RefreshMainWindow();
         }
         internal static void Refuel(Panel_Inventory_Examine __instance)
@@ -382,7 +352,7 @@ namespace BetterWaterManagement
             var liquidItem = __instance.m_GearItem.m_LiquidItem;
             if (liquidItem.m_LiquidLiters >= liquidItem.m_LiquidCapacityLiters)
             {
-                HUDMessage.AddMessage(Localization.Get("GAMEPLAY_Lampalreadyfull")); //todo GAMEPLAY_Failed | GAMEPLAY_None
+                HUDMessage.AddMessage(Localization.Get("GAMEPLAY_Lampalreadyfull")); // There could be a better message..
                 GameAudioManager.PlayGUIError();
                 __instance.RefreshMainWindow();
                 return;
@@ -394,11 +364,9 @@ namespace BetterWaterManagement
                 __instance.RefreshMainWindow();
                 return;
             }
-
             float maxWaterInBottle = Mathf.Min(Water.GetActual(liquidItem.m_LiquidQuality), liquidItem.m_LiquidCapacityLiters);
             float maximumWaterRefuel = Mathf.Max(maxWaterInBottle - liquidItem.m_LiquidLiters, 0);
-
-            if (maximumWaterRefuel <= 0.001f)
+            if (maximumWaterRefuel <= 0.001f) // If nothing gets transferred.
             {
                 HUDMessage.AddMessage(Localization.Get("GAMEPLAY_None"));
                 GameAudioManager.PlayGUIError();
@@ -406,16 +374,7 @@ namespace BetterWaterManagement
                 return;
             }
             GameAudioManager.PlayGuiConfirm();
-
             float refuelDuration = Mathf.Max(maximumWaterRefuel * 4, 1);
-
-            //! delete
-            MelonLoader.MelonLogger.Log("--------------------------");
-            MelonLoader.MelonLogger.Log("maxWaterInBottle: {0}", maxWaterInBottle);
-            MelonLoader.MelonLogger.Log("maximumWaterRefuel: {0}", maximumWaterRefuel);
-            MelonLoader.MelonLogger.Log("refuelDuration: {0}", refuelDuration);
-            //! delete
-
             InterfaceManager.m_Panel_GenericProgressBar.Launch(Localization.Get("GAMEPLAY_RefuelingProgress"), refuelDuration, 0f, 0f,
                             "Play_SndActionRefuelLantern", null, false, true, new System.Action<bool, bool, float>(OnRefuelFinished));
 
@@ -569,7 +528,7 @@ namespace BetterWaterManagement
         internal static GameObject nSelectHarvestBLabel; // New select harvest button label.
         internal static GameObject oUseRefuelBLabel; // Original use refuel button label.
         internal static GameObject nUseRefuelBLabel; // New use refuel button label
-        internal static void Initialize(Panel_Inventory_Examine panel_ie)
+        internal static void Initialize(Panel_Inventory_Examine panel_ie) // Create new labels.
         {
             oSelectHarvestBLabel = panel_ie.m_Button_Harvest.GetComponentInChildren<UILabel>().gameObject;
             nSelectHarvestBLabel = GameObject.Instantiate(oSelectHarvestBLabel, oSelectHarvestBLabel.transform.parent);
